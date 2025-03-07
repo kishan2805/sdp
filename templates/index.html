@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Follow-Up Email Generator</title>
+    <link rel="stylesheet" href="../static/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <div class="images_container">
+            <img
+            height="10"
+            width="20"
+           alt="logo"
+           
+           src="https://i.pinimg.com/736x/9f/75/5e/9f755eedd6dcbb80ccfbb4956bd6e280.jpg">
+            <img src="https://media.licdn.com/dms/image/v2/D560BAQGm8Y-jLy-UGg/company-logo_200_200/company-logo_200_200/0/1687530384821/ivislabs_logo?e=2147483647&v=beta&t=m2oKni29yc_fAG67L6jaPvEXFa_8faH16b6Nz1mDpzA" alt="logo">
+            <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRosNW0BNaByX_qWFb6RQsFPZpp9oG3tp5XyEQIzZASbOkIJ17Q" alt="logo">
+        </div>
+
+        <header class="form-heading">
+            <h1>Follow-Up Email Generator</h1>
+            <p>Generate personalized follow-up emails based on prospect interactions and feedback.</p>
+        </header>
+
+        <div class="form-container">
+            <form id="emailForm">
+                <div class="form-group">
+                    <label for="prospect_name">Prospect Name:</label>
+                    <input type="text" id="prospect_name" name="prospect_name" required placeholder="Enter prospect's name">
+                </div>
+
+                <div class="form-group">
+                    <label for="last_interaction">Last Interaction:</label>
+                    <textarea id="last_interaction" name="last_interaction" required placeholder="Describe the last interaction"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="previous_feedback">Previous Feedback:</label>
+                    <textarea id="previous_feedback" name="previous_feedback" required placeholder="Describe the feedback provided by the prospect"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="next_step">Next Step:</label>
+                    <input type="text" id="next_step" name="next_step" required placeholder="Describe the next step (e.g., Follow-up on discussion)">
+                </div>
+
+                <div class="form-group">
+                    <label for="tone">Email Tone:</label>
+                    <select id="tone" name="tone">
+                        <option value="professional" selected>Professional</option>
+                        <option value="casual">Casual</option>
+                        <option value="friendly">Friendly</option>
+                        <option value="inspirational">Inspirational</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="model">LLM Model:</label>
+                    <select id="model" name="model">
+                        <!-- Will be populated from API -->
+                        <option value="granite3-dense:latest" selected>granite3-dense:latest</option>
+                    </select>
+                </div>
+
+                <button type="submit" id="generateBtn">Generate Follow-Up Email</button>
+            </form>
+        </div>
+
+        <div class="results-container" id="resultsContainer" style="display: none;">
+            <h2>Your Follow-Up Email</h2>
+            <div id="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Generating email...</p>
+            </div>
+            <div id="results">
+                <!-- Results will appear here -->
+            </div>
+            <button id="copyBtn">Copy to Clipboard</button>
+        </div>
+    </div>
+
+    <script>
+        // Fetch available models when page loads
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const response = await fetch('/models');
+                const data = await response.json();
+                const modelSelect = document.getElementById('model');
+                
+                // Clear existing options
+                modelSelect.innerHTML = '';
+                
+                // Add each model as an option
+                data.models.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model;
+                    option.textContent = model;
+                    modelSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error fetching models:', error);
+            }
+        });
+
+        // Handle form submission
+        document.getElementById('emailForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const resultsContainer = document.getElementById('resultsContainer');
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+            
+            // Show loading indicator
+            resultsContainer.style.display = 'block';
+            loading.style.display = 'block';
+            results.innerHTML = '';
+            
+            try {
+                const response = await fetch('/generate', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Error: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                // Format and display the results
+                results.innerHTML = formatResponseWithMarkdown(data.generated_email);
+                
+            } catch (error) {
+                results.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            } finally {
+                loading.style.display = 'none';
+            }
+        });
+        
+        // Copy results to clipboard
+        document.getElementById('copyBtn').addEventListener('click', () => {
+            const results = document.getElementById('results').innerText;
+            navigator.clipboard.writeText(results)
+                .then(() => {
+                    const copyBtn = document.getElementById('copyBtn');
+                    copyBtn.textContent = 'Copied!';
+                    setTimeout(() => {
+                        copyBtn.textContent = 'Copy to Clipboard';
+                    }, 2000);
+                })
+                .catch(err => {
+                    console.error('Failed to copy: ', err);
+                });
+        });
+        
+        // Simple function to format text with basic markdown
+        function formatResponseWithMarkdown(text) {
+            // Handle line breaks
+            let formatted = text.replace(/\n/g, '<br>');
+            
+            // Format titles/headings (# Title)
+            formatted = formatted.replace(/#{1,6}\s+(.*?)(?:<br>|$)/g, '<h3>$1</h3>');
+            
+            // Format list items
+            formatted = formatted.replace(/(\d+\.\s+)(.*?)(?:<br>|$)/g, '<div class="list-item"><span class="list-number">$1</span>$2</div>');
+            
+            // Bold text
+            formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            
+            // Italic text
+            formatted = formatted.replace(/\*(.*?)\*/g, '<em>$1</em>');
+            
+            return formatted;
+        }
+    </script>
+</body>
+</html>
